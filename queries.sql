@@ -1,42 +1,51 @@
--- Запрос для получения топ-10 продавцов по суммарной выручке
+-- Запрос для получения количества покупателей в разных возрастных группах
 SELECT 
-    seller, 
-    operations, 
-    FLOOR(income) AS income
+    CASE
+        WHEN age BETWEEN 16 AND 25 THEN '16-25'
+        WHEN age BETWEEN 26 AND 40 THEN '26-40'
+        ELSE '40+'
+    END AS age_category,
+    COUNT(*) AS age_count
 FROM 
-    sellers
+    customers
+GROUP BY 
+    age_category
 ORDER BY 
-    income DESC
-LIMIT 10;
+    age_category;
 
--- Запрос для получения продавцов с низкой средней выручкой
-WITH average_income_all AS (
-    SELECT 
-        FLOOR(AVG(income / operations)) AS avg_income_all
-    FROM 
-        sellers
-)
+-- Запрос для получения количества уникальных покупателей и выручки по месяцам
 SELECT 
-    seller, 
-    FLOOR(income / operations) AS average_income
-FROM 
-    sellers
-WHERE 
-    FLOOR(income / operations) < (SELECT avg_income_all FROM average_income_all)
-ORDER BY 
-    average_income ASC;
-
--- Запрос для получения выручки по дням недели
-SELECT 
-    seller, 
-    TO_CHAR(date, 'day') AS day_of_week, 
+    TO_CHAR(sale_date, 'YYYY-MM') AS date,
+    COUNT(DISTINCT customer_id) AS total_customers,
     FLOOR(SUM(income)) AS income
 FROM 
     sales
 GROUP BY 
-    seller, 
-    TO_CHAR(date, 'day'), 
-    EXTRACT(DOW FROM date)
+    TO_CHAR(sale_date, 'YYYY-MM')
 ORDER BY 
-    EXTRACT(DOW FROM date), 
-    seller;
+    date ASC;
+
+-- Запрос для получения покупателей, первая покупка которых была во время акций
+WITH first_purchase AS (
+    SELECT 
+        customer_id,
+        MIN(sale_date) AS first_sale_date
+    FROM 
+        sales
+    WHERE 
+        price = 0
+    GROUP BY 
+        customer_id
+)
+SELECT 
+    c.first_name || ' ' || c.last_name AS customer,
+    fp.first_sale_date AS sale_date,
+    s.seller_first_name || ' ' || s.seller_last_name AS seller
+FROM 
+    first_purchase fp
+JOIN 
+    customers c ON fp.customer_id = c.customer_id
+JOIN 
+    sales s ON fp.customer_id = s.customer_id AND fp.first_sale_date = s.sale_date
+ORDER BY 
+    c.customer_id;
